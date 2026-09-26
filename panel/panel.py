@@ -195,7 +195,10 @@ _SUMMARY_SYSTEM = (
     '      "country": "...",\n'
     '      "position": "their final position in 1-2 sentences",\n'
     '      "reasoning": "why they hold it in 1-2 sentences",\n'
-    '      "changed_position": true/false\n'
+    '      "confidence": "high / moderate / low",\n'
+    '      "changed_position": true/false,\n'
+    '      "change_reason": "the specific argument that convinced them, '
+    "or null if they did not change\"\n"
     "    }\n"
     "  ],\n"
     '  "disagreements": [\n'
@@ -203,6 +206,12 @@ _SUMMARY_SYSTEM = (
     '      "topic": "short label",\n'
     '      "sides": {"Name1": "stance", "Name2": "stance"},\n'
     '      "crux": "core reason for the disagreement"\n'
+    "    }\n"
+    "  ],\n"
+    '  "unresolved": [\n'
+    "    {\n"
+    '      "question": "a question the panel could not settle",\n'
+    '      "why": "why it remains open"\n'
     "    }\n"
     "  ]\n"
     "}"
@@ -225,7 +234,11 @@ def _summary_prompt(
     return (
         f"The panel discussed this question:\n\n{question}\n\n"
         f"Here is the full transcript:\n\n{transcript}\n\n"
-        "Produce the JSON summary now."
+        "Produce the JSON summary now.  Pay special attention to:\n"
+        "- Whether each persona actually changed position (look for "
+        "explicit statements, not just softened language)\n"
+        "- Unresolved questions the panel raised but could not settle\n"
+        "- Disagreements that persisted through round 2"
     )
 
 
@@ -233,10 +246,9 @@ def _summary_prompt(
 # Parse helpers
 # ---------------------------------------------------------------------------
 
-def _parse_summary(raw: str) -> dict[str, Any]:
-    """Try to parse the summary JSON, stripping common model quirks."""
-    text = raw.strip()
-    # Strip markdown code fences if the model adds them despite instructions
+def _strip_fences(text: str) -> str:
+    """Remove markdown code fences and leading 'json' label."""
+    text = text.strip()
     if text.startswith("```"):
         text = text.split("\n", 1)[1] if "\n" in text else text[3:]
     if text.endswith("```"):
@@ -244,7 +256,11 @@ def _parse_summary(raw: str) -> dict[str, Any]:
     text = text.strip()
     if text.startswith("json"):
         text = text[4:].strip()
-    return json.loads(text)
+    return text
+
+
+def _parse_summary(raw: str) -> dict[str, Any]:
+    return json.loads(_strip_fences(raw))
 
 
 def _extract_summary(
@@ -257,7 +273,7 @@ def _extract_summary(
     raw = generate(
         _summary_prompt(question, round1, round2),
         system=_SUMMARY_SYSTEM,
-        use_cache=False,  # always fresh summary
+        use_cache=False,
     )
     try:
         return _parse_summary(raw)
@@ -266,7 +282,7 @@ def _extract_summary(
 
     repair_prompt = (
         f"Your previous response was not valid JSON:\n\n{raw}\n\n"
-        "Fix it. Return ONLY valid JSON matching the schema."
+        "Fix it.  Return ONLY valid JSON matching the schema."
     )
     try:
         raw = generate(repair_prompt, system=_SUMMARY_SYSTEM, use_cache=False)
