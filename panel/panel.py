@@ -291,22 +291,42 @@ def _extract_summary(
         msg = f"Summary extraction failed after retry: {exc}"
         logger.error(msg)
         errors.append(msg)
-        return {"personas": [], "disagreements": []}
+        return {"personas": [], "disagreements": [], "unresolved": []}
 
 
 # ---------------------------------------------------------------------------
 # Run the panel
 # ---------------------------------------------------------------------------
 
-def run_panel(question: str) -> PanelResult:
-    """Execute a full panel discussion and return structured results."""
-    personas = _load_personas()
+def run_panel(question: str, mode: PanelMode = PanelMode.DYNAMIC) -> PanelResult:
+    """Execute a full panel discussion and return structured results.
+
+    Modes:
+      - DYNAMIC: generate personas fitted to the question (default)
+      - FIXED:   use pre-defined personas from personas.yaml
+      - BASELINE: sample one persona three times (null-diversity control)
+    """
     errors: list[str] = []
 
+    # ---- Select personas -------------------------------------------------
+    if mode == PanelMode.DYNAMIC:
+        personas = _generate_personas(question, errors)
+    elif mode == PanelMode.BASELINE:
+        personas = _baseline_personas()
+    else:
+        personas = _load_fixed_personas()
+
     # ---- Round 1: independent answers (parallel) -------------------------
-    def _round1_answer(persona: dict) -> tuple[str, str]:
+    # Runs independently so each persona answers without seeing others.
+    # Du et al. (ICML 2024) showed this preserves first-round diversity.
+
+    def _round1_answer(args: tuple[int, dict]) -> tuple[str, str]:
+        idx, persona = args
         try:
-            answer = generate(_round1_prompt(question), system=_system_prompt(persona))
+            answer = generate(
+                _round1_prompt(question),
+                system=_system_prompt(persona),
+            )
         except Exception as exc:
             msg = f"Round 1 failed for {persona['name']}: {exc}"
             logger.error(msg)
@@ -315,16 +335,24 @@ def run_panel(question: str) -> PanelResult:
         return persona["name"], answer
 
     with ThreadPoolExecutor(max_workers=3) as pool:
-        round1 = dict(pool.map(_round1_answer, personas))
+        round1 = dict(pool.map(_round1_answer, enumerate(personas)))
 
-    # ---- Round 2: rebuttals (parallel) -----------------------------------
-    def _round2_answer(persona: dict) -> tuple[str, str | None]:
+    # ---- Round 2: structured critique (parallel) -------------------------
+    # Each persona critiques the others using a structured format rather
+    # than free discussion.  Anti-convergence instructions prevent premature
+    # agreement (Smit et al., ICML 2024).
+
+    def _round2_answer(args: tuple[int, dict]) -> tuple[str, str | None]:
+        idx, persona = args
         other_answers = {
             name: text for name, text in round1.items() if name != persona["name"]
         }
         prompt = _round2_prompt(question, persona["name"], other_answers)
         try:
-            answer = generate(prompt, system=_system_prompt(persona))
+            answer = generate(
+                prompt,
+                system=_system_prompt(persona),
+            )
         except Exception as exc:
             msg = f"Round 2 failed for {persona['name']}: {exc}"
             logger.error(msg)
@@ -335,17 +363,21 @@ def run_panel(question: str) -> PanelResult:
     with ThreadPoolExecutor(max_workers=3) as pool:
         round2 = {
             name: answer
-            for name, answer in pool.map(_round2_answer, personas)
+            for name, answer in pool.map(_round2_answer, enumerate(personas))
             if answer is not None
         }
 
-    # ---- Summary extraction ----------------------------------------------
+    # ---- Summary extraction (external moderator) -------------------------
+    # A separate call acts as an impartial judge rather than letting
+    # personas self-summarise (Khan et al., ICML 2024).
     summary = _extract_summary(question, round1, round2, errors)
 
     return PanelResult(
         question=question,
+        mode=mode.value,
         personas=summary.get("personas", []),
         disagreements=summary.get("disagreements", []),
+        unresolved=summary.get("unresolved", []),
         raw_round_1=round1,
         raw_round_2=round2,
         errors=errors,
