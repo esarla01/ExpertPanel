@@ -1,7 +1,36 @@
-"""Panel orchestration: runs the three-persona debate and extracts structure."""
+"""Panel orchestration: runs the three-persona debate and extracts structure.
+
+Architecture rationale (each choice mapped to supporting evidence):
+
+- Round 1 runs independently, in parallel, with no persona seeing another's
+  answer.  This preserves first-round diversity, which Du et al. (ICML 2024)
+  showed is critical for disagreement to act as an uncertainty filter.
+  Parallel execution also avoids anchoring on whoever speaks first
+  (BenchForm, ICLR 2025 showed conformity rises with exposure).
+
+- Round 2 uses structured critique rather than free discussion.  Each persona
+  must identify the strongest point, weakest point, and one question for each
+  colleague.  Khan et al. (ICML 2024) showed structured, evidence-based
+  critique outperforms open discussion for surfacing truth.
+
+- Anti-convergence instructions tell personas NOT to seek consensus and to
+  start with disagreement.  Smit et al. (ICML 2024) showed that tuning
+  agent agreeableness is the single strongest hyperparameter for debate quality.
+
+- Personas state confidence and what could change their mind.  MedAgentAudit
+  (2025) recommends treating unresolved conflict as an uncertainty signal
+  rather than smoothing it away.
+
+- A separate moderator call extracts the summary.  Khan et al. (ICML 2024)
+  showed an external judge outperforms self-consensus.
+
+- Brevity constraint (under 250 words) forces commitment and reduces the
+  hedge-space that lets models avoid taking a clear position.
+"""
 
 import json
 import logging
+import random
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
@@ -9,20 +38,91 @@ from typing import Any
 import yaml
 
 from panel.llm import generate
-from panel.schemas import PanelResult
+from panel.schemas import PanelMode, PanelResult
 
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Load personas
+# Load fixed personas
 # ---------------------------------------------------------------------------
 
 _PERSONAS_PATH = Path(__file__).resolve().parent.parent / "personas.yaml"
 
 
-def _load_personas() -> list[dict[str, str]]:
+def _load_fixed_personas() -> list[dict[str, str]]:
     with open(_PERSONAS_PATH) as f:
         return yaml.safe_load(f)
+
+
+# ---------------------------------------------------------------------------
+# Dynamic persona generation (casting-director step)
+# ---------------------------------------------------------------------------
+
+_CASTING_SYSTEM = (
+    "You design expert panels.  Return ONLY valid JSON, no markdown, "
+    "no commentary, no code fences."
+)
+
+
+def _casting_prompt(question: str) -> str:
+    return (
+        "You are designing a panel of three senior professionals who will "
+        "debate the following question:\n\n"
+        f"{question}\n\n"
+        "Identify the two or three fundamental tensions in this question "
+        "(e.g. individual vs population, short-term vs long-term, "
+        "efficiency vs equity, evidence vs values).  Then create three "
+        "expert personas who will naturally fall on DIFFERENT sides of "
+        "those tensions.\n\n"
+        "Rules:\n"
+        "- No two personas should reach the same conclusion on this question.\n"
+        "- At least one persona must challenge the assumptions in the "
+        "question itself.\n"
+        "- Personas must differ in VALUES, not just in emphasis or tone.\n"
+        "- Each persona must have a specific professional role, not a "
+        "generic title like 'ethicist'.\n\n"
+        "Return a JSON array of exactly three objects:\n"
+        "[\n"
+        "  {\n"
+        '    "name": "Dr Firstname Surname",\n'
+        '    "role": "specific professional role and what they do day to day",\n'
+        '    "country": "country they practise in",\n'
+        '    "perspective": "2-3 sentences describing their worldview and '
+        "what they prioritise, written as instructions to that persona "
+        '(start with \'You...\')"\n'
+        "  }\n"
+        "]"
+    )
+
+
+def _generate_personas(question: str, errors: list[str]) -> list[dict[str, str]]:
+    """Use a casting-director call to create personas fitted to the question."""
+    try:
+        raw = generate(
+            _casting_prompt(question),
+            system=_CASTING_SYSTEM,
+            use_cache=True,
+            temperature=1.0,
+        )
+        personas = json.loads(_strip_fences(raw))
+        if isinstance(personas, list) and len(personas) == 3:
+            return personas
+        raise ValueError(f"Expected list of 3 personas, got {type(personas)}")
+    except Exception as exc:
+        msg = f"Dynamic persona generation failed ({exc}), falling back to fixed"
+        logger.warning(msg)
+        errors.append(msg)
+        return _load_fixed_personas()
+
+
+def _baseline_personas() -> list[dict[str, str]]:
+    """Return three copies of one randomly chosen fixed persona (null baseline)."""
+    fixed = _load_fixed_personas()
+    chosen = random.choice(fixed)
+    return [
+        {**chosen, "name": f"{chosen['name']} (Sample {i})"}
+        for i in range(1, 4)
+    ]
 
 
 # ---------------------------------------------------------------------------
