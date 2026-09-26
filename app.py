@@ -22,4 +22,4 @@ def health():
 
 @app.post("/panel", response_model=PanelResult)
 def panel(req: PanelRequest):
-    return run_panel(req.question)
+    return run_panel(req.question, mode=req.mode)
