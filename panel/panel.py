@@ -134,17 +134,22 @@ def _system_prompt(persona: dict) -> str:
         f"You are {persona['name']}, a {persona['role']} based in "
         f"{persona['country']}.\n\n"
         f"{persona['perspective']}\n\n"
-        "Stay in character throughout. Be specific and direct. "
-        "Do not hedge excessively or try to please everyone."
+        "Stay in character throughout.  Be specific and direct.  "
+        "Do not hedge excessively or try to please everyone.  "
+        "Always respond in English, regardless of your country or "
+        "native language.\n\n"
+        "Keep your response under 250 words.  Brevity forces commitment."
     )
 
 
 def _round1_prompt(question: str) -> str:
     return (
-        f"A panel of senior professionals is discussing this question:\n\n"
+        "A panel of senior professionals is discussing this question:\n\n"
         f"{question}\n\n"
-        "Give your independent answer. State your position clearly, "
-        "explain your reasoning, and identify the trade-offs you accept."
+        "Give your independent answer.  State your position clearly, "
+        "explain your reasoning, and identify the trade-offs you accept.\n\n"
+        "At the end, state your confidence (high / moderate / low) and "
+        "name one thing that could change your mind."
     )
 
 
@@ -160,16 +165,26 @@ def _round2_prompt(
     return (
         f"The question was:\n\n{question}\n\n"
         f"Your colleagues responded as follows:\n\n{others_text}\n\n"
-        f"You are {persona_name}. Respond to your colleagues. "
-        "Where do you agree? Where do you disagree, and why? "
-        "If you have changed your position, say so and explain what "
-        "convinced you. If you have not changed, say why not."
+        f"You are {persona_name}.  Do NOT seek consensus.  "
+        "Start with where you DISAGREE and why.\n\n"
+        "For each colleague, respond in this structure:\n"
+        "1. Their strongest point and why it is strong\n"
+        "2. The weakest part of their argument and what evidence undermines it\n"
+        "3. One question you would ask them\n\n"
+        "Only mention agreement if it is genuinely important.  "
+        "If you have not changed your position, defend it.\n\n"
+        "End with your updated confidence (high / moderate / low) and "
+        "one thing that could still change your mind."
     )
 
 
+# ---------------------------------------------------------------------------
+# Summary extraction
+# ---------------------------------------------------------------------------
+
 _SUMMARY_SYSTEM = (
-    "You are an impartial moderator summarising a panel discussion. "
-    "Return ONLY valid JSON matching the schema below. No markdown, "
+    "You are an impartial moderator summarising a panel discussion.  "
+    "Return ONLY valid JSON matching the schema below.  No markdown, "
     "no commentary, no code fences.\n\n"
     "Schema:\n"
     "{\n"
