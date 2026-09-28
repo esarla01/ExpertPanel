@@ -15,6 +15,14 @@ class PanelMode(str, Enum):
     DYNAMIC = "dynamic"    # Personas generated to fit the question's tensions
     BASELINE = "baseline"  # Same persona sampled 3x (null-diversity control)
 
+# ---------------------------------------------------------------------------
+# Persona definition
+# ---------------------------------------------------------------------------
+class GeneratedPersona(BaseModel):
+    name: str
+    role: str
+    country: str
+    perspective: str = Field(..., description="The instructions given to this persona")
 
 # ---------------------------------------------------------------------------
 # Request
@@ -74,6 +82,10 @@ class UnresolvedQuestion(BaseModel):
 class PanelResult(BaseModel):
     question: str
     mode: str = Field(..., description="Which persona strategy was used")
+    generated_personas: list[GeneratedPersona] = Field(
+        default_factory=list,
+        description="The full persona definitions used, including their prompts",
+    )
     personas: list[PersonaPosition]
     disagreements: list[Disagreement]
     unresolved: list[UnresolvedQuestion] = Field(

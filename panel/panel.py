@@ -375,6 +375,7 @@ def run_panel(question: str, mode: PanelMode = PanelMode.DYNAMIC) -> PanelResult
     return PanelResult(
         question=question,
         mode=mode.value,
+        generated_personas=personas,   # <-- add this line
         personas=summary.get("personas", []),
         disagreements=summary.get("disagreements", []),
         unresolved=summary.get("unresolved", []),
