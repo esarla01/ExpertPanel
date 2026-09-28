@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Synthetic Expert Panel</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=Inter:wght@400;500;600&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #fafaf8;
+    --surface: #ffffff;
+    --border: #e2e0dc;
+    --text: #1a1a1a;
+    --text-secondary: #5c5c5c;
+    --accent-1: #2a6b5a;
+    --accent-2: #8b5a3c;
+    --accent-3: #4a5a8b;
+    --accent-bg-1: #edf5f2;
+    --accent-bg-2: #f5efe9;
+    --accent-bg-3: #edf0f5;
+    --disagree: #c44;
+    --disagree-bg: #fdf0f0;
+    --unresolved: #8b6914;
+    --unresolved-bg: #faf5e6;
+    --serif: 'Source Serif 4', Georgia, serif;
+    --sans: 'Inter', system-ui, sans-serif;
+    --radius: 6px;
+  }
+
+  body {
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.6;
+    color: var(--text);
+    background: var(--bg);
+  }
+
+  .container {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 48px 24px 80px;
+  }
+
+  h1 {
+    font-family: var(--serif);
+    font-size: 28px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+
+  .subtitle {
+    color: var(--text-secondary);
+    font-size: 14px;
+    margin-bottom: 36px;
+  }
+
+  /* --- Input form --- */
+  textarea {
+    width: 100%;
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.5;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    resize: vertical;
+    min-height: 52px;
+    background: var(--surface);
+    color: var(--text);
+    margin-bottom: 12px;
+  }
+
+  textarea:focus { outline: 2px solid var(--accent-1); outline-offset: -1px; }
+
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 40px;
+  }
+
+  select {
+    font-family: var(--sans);
+    font-size: 14px;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--text);
+  }
+
+  button {
+    font-family: var(--sans);
+    font-size: 14px;
+    font-weight: 500;
+    padding: 9px 20px;
+    border: none;
+    border-radius: var(--radius);
+    background: var(--accent-1);
+    color: #fff;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  button:hover { opacity: 0.9; }
+  button:disabled { opacity: 0.5; cursor: wait; }
+
+  .mode-label {
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+
+  /* --- Loading --- */
+  .loading {
+    text-align: center;
+    padding: 48px 0;
+    color: var(--text-secondary);
+    font-size: 14px;
+  }
+
+  .spinner {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent-1);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-right: 8px;
+    vertical-align: middle;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* --- Results --- */
+  .results { display: none; }
+  .results.visible { display: block; }
+
+  .section-label {
+    font-family: var(--serif);
+    font-size: 20px;
+    font-weight: 600;
+    margin: 40px 0 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .section-label:first-of-type { margin-top: 0; }
+
+  .mode-badge {
+    display: inline-block;
+    font-family: var(--sans);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 3px 8px;
+    border-radius: 3px;
+    background: var(--accent-bg-1);
+    color: var(--accent-1);
+    margin-left: 10px;
+    vertical-align: middle;
+  }
+
+  /* --- Persona cards --- */
+  .persona-card {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 16px;
+    overflow: hidden;
+  }
+
+  .persona-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 18px;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .persona-header:hover { background: var(--bg); }
+
+  .persona-card:nth-child(1) .persona-header { border-left: 3px solid var(--accent-1); }
+  .persona-card:nth-child(2) .persona-header { border-left: 3px solid var(--accent-2); }
+  .persona-card:nth-child(3) .persona-header { border-left: 3px solid var(--accent-3); }
+
+  .persona-name { font-weight: 600; font-size: 15px; }
+
+  .chevron {
+    margin-left: auto;
+    font-size: 12px;
+    color: var(--text-secondary);
+    transition: transform 0.2s;
+  }
+
+  .persona-card.open .chevron { transform: rotate(90deg); }
+
+  .persona-body {
+    display: none;
+    padding: 0 18px 16px;
+    font-size: 14px;
+    line-height: 1.65;
+    white-space: pre-wrap;
+    color: var(--text);
+    border-top: 1px solid var(--border);
+    padding-top: 14px;
+  }
+
+  .persona-card.open .persona-body { display: block; }
+
+  /* --- Summary cards --- */
+  .summary-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    margin-bottom: 12px;
+  }
+
+  .summary-card:nth-child(1) { border-left: 3px solid var(--accent-1); }
+  .summary-card:nth-child(2) { border-left: 3px solid var(--accent-2); }
+  .summary-card:nth-child(3) { border-left: 3px solid var(--accent-3); }
+
+  .summary-name { font-weight: 600; font-size: 15px; margin-bottom: 2px; }
+  .summary-meta { font-size: 13px; color: var(--text-secondary); margin-bottom: 8px; }
+  .summary-position { font-size: 14px; margin-bottom: 6px; }
+  .summary-reasoning { font-size: 13px; color: var(--text-secondary); font-style: italic; }
+
+  .confidence-badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 3px;
+    margin-left: 6px;
+    vertical-align: middle;
+  }
+
+  .confidence-high { background: var(--accent-bg-1); color: var(--accent-1); }
+  .confidence-moderate { background: var(--unresolved-bg); color: var(--unresolved); }
+  .confidence-low { background: var(--disagree-bg); color: var(--disagree); }
+
+  .changed-badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 2px 7px;
+    border-radius: 3px;
+    background: var(--unresolved-bg);
+    color: var(--unresolved);
+    margin-left: 6px;
+  }
+
+  /* --- Disagreement and unresolved --- */
+  .disagree-card {
+    background: var(--disagree-bg);
+    border: 1px solid #e8c4c4;
+    border-radius: var(--radius);
+    padding: 14px 18px;
+    margin-bottom: 12px;
+  }
+
+  .disagree-topic { font-weight: 600; font-size: 14px; color: var(--disagree); margin-bottom: 6px; }
+  .disagree-crux { font-size: 13px; color: var(--text-secondary); font-style: italic; margin-top: 8px; }
+
+  .side-item {
+    font-size: 13px;
+    margin: 4px 0;
+    padding-left: 12px;
+    border-left: 2px solid #daa;
+  }
+
+  .side-name { font-weight: 600; }
+
+  .unresolved-card {
+    background: var(--unresolved-bg);
+    border: 1px solid #e0d5a8;
+    border-radius: var(--radius);
+    padding: 14px 18px;
+    margin-bottom: 12px;
+  }
+
+  .unresolved-q { font-weight: 500; font-size: 14px; color: var(--unresolved); margin-bottom: 4px; }
+  .unresolved-why { font-size: 13px; color: var(--text-secondary); }
+
+  .error-banner {
+    background: var(--disagree-bg);
+    border: 1px solid #e8c4c4;
+    border-radius: var(--radius);
+    padding: 12px 16px;
+    color: var(--disagree);
+    font-size: 14px;
+    margin-bottom: 16px;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Synthetic Expert Panel</h1>
+  <p class="subtitle">Three AI-simulated experts debate your question, then a moderator extracts their positions and disagreements.</p>
+
+  <h4>Ask your question here:</h4>
+  <textarea id="question" rows="2" placeholder="Type a question for the panel...">A health service can fund GLP-1 weight-loss treatment for one in three of the patients who qualify. Who should be treated first, and on what grounds?</textarea>
+
+  <div class="controls">
+    <span class="mode-label">Mode</span>
+    <select id="mode">
+      <option value="dynamic" selected>Dynamic (fitted to question)</option>
+      <option value="fixed">Fixed (pre-defined personas)</option>
+      <option value="baseline">Baseline (same persona x3)</option>
+    </select>
+    <button id="run">Run panel</button>
+  </div>
+
+  <div id="loading" class="loading" style="display:none">
+    <span class="spinner"></span>Running panel, this takes about a minute...
+  </div>
+
+  <div id="results" class="results">
+    <div id="errors"></div>
+
+    <div class="section-label">Generated Personas <span id="modeBadge" class="mode-badge"></span></div>
+    <div id="personasList"></div>
+
+    <div class="section-label">Round 1: Independent Positions</div>
+    <div id="round1"></div>
+
+    <div class="section-label">Round 2: Structured Critique</div>
+    <div id="round2"></div>
+
+    <div class="section-label">Final Positions</div>
+    <div id="summary"></div>
+
+    <div class="section-label">Disagreements</div>
+    <div id="disagreements"></div>
+
+    <div id="unresolvedSection" style="display:none">
+      <div class="section-label">Unresolved Questions</div>
+      <div id="unresolved"></div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+const dom = {
+  runButton: document.getElementById('run'),
+  loading: document.getElementById('loading'),
+  results: document.getElementById('results'),
+  question: document.getElementById('question'),
+  mode: document.getElementById('mode'),
+  modeBadge: document.getElementById('modeBadge'),
+  errors: document.getElementById('errors'),
+  personasList: document.getElementById('personasList'),
+  round1: document.getElementById('round1'),
+  round2: document.getElementById('round2'),
+  summary: document.getElementById('summary'),
+  disagreements: document.getElementById('disagreements'),
+  unresolvedSection: document.getElementById('unresolvedSection'),
+  unresolved: document.getElementById('unresolved'),
+};
+
+dom.runButton.addEventListener('click', runPanel);
+
+/** Minimal hyperscript-style element builder; avoids innerHTML string concatenation. */
+function el(tag, attrs = {}, children = []) {
+  const node = document.createElement(tag);
+  for (const [key, value] of Object.entries(attrs)) {
+    if (value == null) continue;
+    if (key === 'class') node.className = value;
+    else if (key === 'text') node.textContent = value;
+    else if (key.startsWith('on') && typeof value === 'function') node.addEventListener(key.slice(2), value);
+    else node.setAttribute(key, value);
+  }
+  for (const child of [children].flat()) {
+    if (child == null) continue;
+    node.append(child);
+  }
+  return node;
+}
+
+async function runPanel() {
+  const question = dom.question.value.trim();
+  const mode = dom.mode.value;
+  if (!question) return;
+
+  dom.runButton.disabled = true;
+  dom.loading.style.display = 'block';
+  dom.results.classList.remove('visible');
+
+  try {
+    const response = await fetch('/panel', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question, mode }),
+    });
+    if (!response.ok) {
+      throw new Error(`Server responded with ${response.status}`);
+    }
+    renderResults(await response.json());
+  } catch (err) {
+    dom.errors.replaceChildren(el('div', { class: 'error-banner', text: `Request failed: ${err.message}` }));
+    dom.results.classList.add('visible');
+  } finally {
+    dom.runButton.disabled = false;
+    dom.loading.style.display = 'none';
+  }
+}
+
+function renderResults(data) {
+  dom.modeBadge.textContent = data.mode;
+
+  dom.errors.replaceChildren(
+    ...(data.errors ?? []).map((message) => el('div', { class: 'error-banner', text: message }))
+  );
+
+  dom.personasList.replaceChildren(
+    ...(data.personas ?? []).map((persona) =>
+      el('div', { class: 'summary-card' }, [
+        el('div', { class: 'summary-name', text: persona.name }),
+        el('div', { class: 'summary-meta', text: `${persona.role} · ${persona.country}` }),
+      ])
+    )
+  );
+
+  dom.round1.replaceChildren(...renderExpandableEntries(data.raw_round_1));
+  dom.round2.replaceChildren(...renderExpandableEntries(data.raw_round_2));
+
+  dom.summary.replaceChildren(...(data.personas ?? []).map(renderSummaryCard));
+
+  dom.disagreements.replaceChildren(...(data.disagreements ?? []).map(renderDisagreementCard));
+
+  const unresolved = data.unresolved ?? [];
+  dom.unresolvedSection.style.display = unresolved.length ? 'block' : 'none';
+  dom.unresolved.replaceChildren(
+    ...unresolved.map((item) =>
+      el('div', { class: 'unresolved-card' }, [
+        el('div', { class: 'unresolved-q', text: item.question }),
+        el('div', { class: 'unresolved-why', text: item.why }),
+      ])
+    )
+  );
+
+  dom.results.classList.add('visible');
+}
+
+function renderSummaryCard(persona) {
+  const nameEl = el('div', { class: 'summary-name' }, [
+    persona.name,
+    el('span', {
+      class: `confidence-badge confidence-${persona.confidence || 'unknown'}`,
+      text: persona.confidence || '?',
+    }),
+  ]);
+
+  if (persona.changed_position) {
+    nameEl.append(el('span', { class: 'changed-badge', text: 'changed position' }));
+  }
+
+  const children = [
+    nameEl,
+    el('div', { class: 'summary-position', text: persona.position }),
+    el('div', { class: 'summary-reasoning', text: persona.reasoning }),
+  ];
+
+  if (persona.changed_position && persona.change_reason) {
+    children.push(
+      el('div', { style: 'font-size:13px;margin-top:6px;color:var(--accent-2)' },
+        `Changed because: ${persona.change_reason}`)
+    );
+  }
+
+  return el('div', { class: 'summary-card' }, children);
+}
+
+function renderDisagreementCard(disagreement) {
+  const sideItems = Object.entries(disagreement.sides ?? {}).map(([name, position]) =>
+    el('div', { class: 'side-item' }, [
+      el('span', { class: 'side-name', text: `${name}:` }),
+      ` ${position}`,
+    ])
+  );
+
+  return el('div', { class: 'disagree-card' }, [
+    el('div', { class: 'disagree-topic', text: disagreement.topic }),
+    ...sideItems,
+    el('div', { class: 'disagree-crux', text: disagreement.crux }),
+  ]);
+}
+
+function renderExpandableEntries(entries) {
+  return Object.entries(entries ?? {}).map(([name, text]) => renderExpandableCard(name, text));
+}
+
+function renderExpandableCard(name, text) {
+  const card = el('div', { class: 'persona-card' }, [
+    el('div', {
+      class: 'persona-header',
+      onclick: () => card.classList.toggle('open'),
+    }, [
+      el('span', { class: 'persona-name', text: name }),
+      el('span', { class: 'chevron', text: '▶' }),
+    ]),
+    el('div', { class: 'persona-body', text }),
+  ]);
+  return card;
+}
+</script>
+</body>
+</html>
