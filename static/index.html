@@ -79,18 +79,32 @@
     display: flex;
     align-items: center;
     gap: 16px;
-    margin-bottom: 40px;
+    margin-bottom: 8px;
+  }
+
+  .mode-hint {
+    font-size: 12.5px;
+    color: var(--text-secondary);
+    max-width: 520px;
+    margin-bottom: 32px;
   }
 
   select {
     font-family: var(--sans);
     font-size: 14px;
-    padding: 8px 12px;
+    padding: 8px 32px 8px 12px;
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    background: var(--surface);
+    background: var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%235c5c5c' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 12px center;
     color: var(--text);
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    transition: border-color 0.15s;
   }
+
+  select:hover { border-color: var(--accent-1); }
+  select:focus { outline: 2px solid var(--accent-1); outline-offset: -1px; }
 
   button {
     font-family: var(--sans);
@@ -307,14 +321,15 @@
   <textarea id="question" rows="2" placeholder="Type a question for the panel...">A health service can fund GLP-1 weight-loss treatment for one in three of the patients who qualify. Who should be treated first, and on what grounds?</textarea>
 
   <div class="controls">
-    <span class="mode-label">Mode</span>
+    <label class="mode-label" for="mode">Mode</label>
     <select id="mode">
-      <option value="dynamic" selected>Dynamic (fitted to question)</option>
-      <option value="fixed">Fixed (pre-defined personas)</option>
-      <option value="baseline">Baseline (same persona x3)</option>
+      <option value="dynamic" selected>Dynamic — personas tailored to your question</option>
+      <option value="fixed">Fixed — same three personas every time</option>
+      <option value="baseline">Baseline — one persona repeated 3× (control)</option>
     </select>
     <button id="run">Run panel</button>
   </div>
+  <p id="modeHint" class="mode-hint"></p>
 
   <div id="loading" class="loading" style="display:none">
     <span class="spinner"></span>Running panel, this takes about a minute...
@@ -352,6 +367,7 @@ const dom = {
   results: document.getElementById('results'),
   question: document.getElementById('question'),
   mode: document.getElementById('mode'),
+  modeHint: document.getElementById('modeHint'),
   modeBadge: document.getElementById('modeBadge'),
   errors: document.getElementById('errors'),
   personasList: document.getElementById('personasList'),
@@ -363,7 +379,19 @@ const dom = {
   unresolved: document.getElementById('unresolved'),
 };
 
+const MODE_HINTS = {
+  dynamic: 'Generates three new personas shaped by the specific tensions in your question.',
+  fixed: 'Puts the same three pre-defined personas (see personas.yaml) to every question.',
+  baseline: 'Samples one persona three times, as a null-diversity control for comparison.',
+};
+
+function updateModeHint() {
+  dom.modeHint.textContent = MODE_HINTS[dom.mode.value] ?? '';
+}
+
+dom.mode.addEventListener('change', updateModeHint);
 dom.runButton.addEventListener('click', runPanel);
+updateModeHint();
 
 /** Minimal hyperscript-style element builder; avoids innerHTML string concatenation. */
 function el(tag, attrs = {}, children = []) {
