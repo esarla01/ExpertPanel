@@ -410,35 +410,33 @@ async function runPanel() {
   }
 }
 
+function renderList(container, items, build) {
+  container.replaceChildren(...items.map(build));
+}
+
 function renderResults(data) {
   dom.modeBadge.textContent = data.mode;
 
-  dom.errors.replaceChildren(
-    ...(data.errors ?? []).map((message) => el('div', { class: 'error-banner', text: message }))
+  renderList(dom.errors, data.errors ?? [], (message) => el('div', { class: 'error-banner', text: message }));
+
+  renderList(dom.personasList, data.generated_personas ?? [], (persona) =>
+    renderExpandableCard(`${persona.name} — ${persona.role} (${persona.country})`, persona.perspective)
   );
 
-  dom.personasList.replaceChildren(
-    ...(data.generated_personas ?? []).map((persona) =>
-      renderExpandableCard(`${persona.name} — ${persona.role} (${persona.country})`, persona.perspective)
-    )
-  );
+  renderList(dom.round1, Object.entries(data.raw_round_1 ?? {}), ([name, text]) => renderExpandableCard(name, text));
+  renderList(dom.round2, Object.entries(data.raw_round_2 ?? {}), ([name, text]) => renderExpandableCard(name, text));
 
-  dom.round1.replaceChildren(...renderExpandableEntries(data.raw_round_1));
-  dom.round2.replaceChildren(...renderExpandableEntries(data.raw_round_2));
+  renderList(dom.summary, data.personas ?? [], renderSummaryCard);
 
-  dom.summary.replaceChildren(...(data.personas ?? []).map(renderSummaryCard));
-
-  dom.disagreements.replaceChildren(...(data.disagreements ?? []).map(renderDisagreementCard));
+  renderList(dom.disagreements, data.disagreements ?? [], renderDisagreementCard);
 
   const unresolved = data.unresolved ?? [];
   dom.unresolvedSection.style.display = unresolved.length ? 'block' : 'none';
-  dom.unresolved.replaceChildren(
-    ...unresolved.map((item) =>
-      el('div', { class: 'unresolved-card' }, [
-        el('div', { class: 'unresolved-q', text: item.question }),
-        el('div', { class: 'unresolved-why', text: item.why }),
-      ])
-    )
+  renderList(dom.unresolved, unresolved, (item) =>
+    el('div', { class: 'unresolved-card' }, [
+      el('div', { class: 'unresolved-q', text: item.question }),
+      el('div', { class: 'unresolved-why', text: item.why }),
+    ])
   );
 
   dom.results.classList.add('visible');
@@ -486,10 +484,6 @@ function renderDisagreementCard(disagreement) {
     ...sideItems,
     el('div', { class: 'disagree-crux', text: disagreement.crux }),
   ]);
-}
-
-function renderExpandableEntries(entries) {
-  return Object.entries(entries ?? {}).map(([name, text]) => renderExpandableCard(name, text));
 }
 
 function renderExpandableCard(name, text) {
