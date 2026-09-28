@@ -418,11 +418,8 @@ function renderResults(data) {
   );
 
   dom.personasList.replaceChildren(
-    ...(data.personas ?? []).map((persona) =>
-      el('div', { class: 'summary-card' }, [
-        el('div', { class: 'summary-name', text: persona.name }),
-        el('div', { class: 'summary-meta', text: `${persona.role} · ${persona.country}` }),
-      ])
+    ...(data.generated_personas ?? []).map((persona) =>
+      renderExpandableCard(`${persona.name} — ${persona.role} (${persona.country})`, persona.perspective)
     )
   );
 
